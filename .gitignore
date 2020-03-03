@@ -1,1 +1,7 @@
+# Executable
 MiniProject2
+
+
+# OSX metadata
+**/*.DS_Store
+**/META-INF/*
