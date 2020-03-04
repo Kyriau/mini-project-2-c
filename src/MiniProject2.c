@@ -4,9 +4,11 @@
 #include <pthread.h>
 #include <semaphore.h>
 
+int n, m;
+
 typedef struct {
 	int id;
-	int length;
+	struct timespec dur;
 } request_t;
 
 typedef struct {
@@ -14,30 +16,48 @@ typedef struct {
 	pthread_t thread;
 } thread_t;
 
+int rand_bound(int low, int high) {
+	return rand() % (high - low + 1) + low;
+}
+
+long rand_nanos() {
+	return (rand_bound(1, 1000) - 1) * 1000000l
+		+ (rand_bound(1, 1000) - 1) * 1000l
+		+ (rand_bound(1, 1000) - 1);
+}
+
+double secs(struct timespec t) {
+	return (double) t.tv_sec + (double)t.tv_nsec / 1000000000.0;
+}
+
+void push(request_t req, request_t *queue) {
+
+}
+
+request_t pop() {
+	request_t result;
+	return result;
+}
+
 void *master(void *arg) {
 
 	printf("Master thread started.\n");
 
-	int *params = (int *)arg;
-	int n = params[0];
-	int m = params[1];
-	request_t queue[sizeof(params[2])] = *params[2];
-	request_t test;
-	test.id = 0;
-	test.length = 10;
-	queue[0] = test;
-	fprintf("%i\n", queue[0].id);
-	fprintf("%i\n", queue[0].length);
-
-	clock_t t0;
-	t0 = clock();
+	request_t *queue = (request_t *)arg;
 
 	while(1) {
 
-		int req_dur = rand_bound(1, m);
 		request_t req;
+		req.dur.tv_sec = rand_bound(1, m) - 1;
+		req.dur.tv_nsec = rand_nanos();
+		//add(req);
+		printf("Producer: produced request id=%i of length %fs\n", req.id, secs(req.dur));
 
-		int sleep_dur = rand_bound(1, 1000);
+		// Sleep for between 0 and 999999999 nanoseconds
+		struct timespec sleep_dur;
+		sleep_dur.tv_nsec = rand_nanos();
+		printf("Producer: sleeping for %fs\n", (double)(sleep_dur.tv_nsec/1000000000.0));
+		nanosleep(&sleep_dur, &sleep_dur);
 
 	}
 
@@ -50,14 +70,9 @@ void *slave(void *arg) {
 	pthread_exit(NULL);
 }
 
-int rand_bound(int low, int high) {
-	return (rand() % (high - low + 1) + low);
-}
-
 int main(int argc, char **argv) {
 
 	// Get n and m from user
-	int n, m;
 	printf("How many consumer threads to you want? ");
 	scanf("%i", &n);
 	printf("How many seconds should the maximum request length be? ");
@@ -66,25 +81,23 @@ int main(int argc, char **argv) {
 	// Set RNG seed
 	srand(314159);
 
+	// Allocate queue
 	request_t queue[n];
-	int (*queue_pnt)[n] = &queue;
 
 	// Generate threads;
 	thread_t threads[n + 1];
 	threads[0].id = 0;
-	int params[3];
-	params[0] = n;
-	params[1] = m;
-	params[2] = queue_pnt;
-	pthread_create(&threads[0].thread, NULL, master, (void *) params);
+	pthread_create(&threads[0].thread, NULL, master, &queue);
+
 	for(int i = 1; i < n + 1; i++) {
 		threads[i].id = i;
-		pthread_create(&threads[i].thread, NULL, slave, NULL);
+		pthread_create(&threads[i].thread, NULL, slave, &queue);
 	}
 
-	pthread_join(threads[0].thread, NULL);
-
-	while(1);
+	// Hold until user input (temporary)
+	char *cmd;
+	scanf(" %c", cmd);
+	//pthread_join(threads[0].thread, NULL);
 
 	exit(0);
 
