@@ -5,16 +5,12 @@
 #include <semaphore.h>
 
 int n, m;
+int id_count = 0;
 
 typedef struct {
 	int id;
 	struct timespec dur;
 } request_t;
-
-typedef struct {
-	int id;
-	pthread_t thread;
-} thread_t;
 
 int rand_bound(int low, int high) {
 	return rand() % (high - low + 1) + low;
@@ -41,8 +37,6 @@ request_t pop() {
 
 void *master(void *arg) {
 
-	printf("Master thread started.\n");
-
 	request_t *queue = (request_t *)arg;
 
 	while(1) {
@@ -50,13 +44,13 @@ void *master(void *arg) {
 		request_t req;
 		req.dur.tv_sec = rand_bound(1, m) - 1;
 		req.dur.tv_nsec = rand_nanos();
-		//add(req);
-		printf("Producer: produced request id=%i of length %fs\n", req.id, secs(req.dur));
+		push(req);
+		printf("Producer: produced request id=%i of length %fs.\n", req.id, secs(req.dur));
 
 		// Sleep for between 0 and 999999999 nanoseconds
 		struct timespec sleep_dur;
 		sleep_dur.tv_nsec = rand_nanos();
-		printf("Producer: sleeping for %fs\n", (double)(sleep_dur.tv_nsec/1000000000.0));
+		printf("Producer: sleeping for %fs.\n", (double)(sleep_dur.tv_nsec/1000000000.0));
 		nanosleep(&sleep_dur, &sleep_dur);
 
 	}
@@ -66,8 +60,21 @@ void *master(void *arg) {
 }
 
 void *slave(void *arg) {
-	printf("slave\n");
+
+	int id = id_count++;
+
+	while(1) {
+
+		printf("Consumer id=%i: Waiting for request to be available.\n", id);
+		request_t req = pop();
+
+		printf("Consumer id=%i: Handling request id=%i, length=%fs.\n", id, req.id, secs(req.dur));
+		nanosleep(&req.dur, &req.dur);
+
+	}
+	
 	pthread_exit(NULL);
+
 }
 
 int main(int argc, char **argv) {
@@ -85,13 +92,11 @@ int main(int argc, char **argv) {
 	request_t queue[n];
 
 	// Generate threads;
-	thread_t threads[n + 1];
-	threads[0].id = 0;
-	pthread_create(&threads[0].thread, NULL, master, &queue);
+	pthread_t threads[n + 1];
+	pthread_create(&threads[0], NULL, master, &queue);
 
 	for(int i = 1; i < n + 1; i++) {
-		threads[i].id = i;
-		pthread_create(&threads[i].thread, NULL, slave, &queue);
+		pthread_create(&threads[i], NULL, slave, &queue);
 	}
 
 	// Hold until user input (temporary)
