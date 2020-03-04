@@ -6,6 +6,7 @@
 
 int n, m;
 int id_count = 0;
+int queue_count, queue_space;
 
 typedef struct {
 	int id;
@@ -28,11 +29,21 @@ double secs(struct timespec t) {
 
 void push(request_t req, request_t *queue) {
 
+	//TODO: Semaphores
+
+	queue_space--;
+	queue[queue_count++ % n] = req;
+
 }
 
-request_t pop() {
-	request_t result;
+request_t pop(request_t *queue) {
+
+	//TODO: Semaphores
+
+	request_t result = queue[(queue_count + queue_space++) % n];
+
 	return result;
+
 }
 
 void *master(void *arg) {
@@ -44,7 +55,7 @@ void *master(void *arg) {
 		request_t req;
 		req.dur.tv_sec = rand_bound(1, m) - 1;
 		req.dur.tv_nsec = rand_nanos();
-		push(req);
+		push(req, queue);
 		printf("Producer: produced request id=%i of length %fs.\n", req.id, secs(req.dur));
 
 		// Sleep for between 0 and 999999999 nanoseconds
@@ -61,12 +72,14 @@ void *master(void *arg) {
 
 void *slave(void *arg) {
 
+	request_t *queue = (request_t *)arg;
+
 	int id = id_count++;
 
 	while(1) {
 
 		printf("Consumer id=%i: Waiting for request to be available.\n", id);
-		request_t req = pop();
+		request_t req = pop(queue);
 
 		printf("Consumer id=%i: Handling request id=%i, length=%fs.\n", id, req.id, secs(req.dur));
 		nanosleep(&req.dur, &req.dur);
@@ -90,6 +103,8 @@ int main(int argc, char **argv) {
 
 	// Allocate queue
 	request_t queue[n];
+	queue_count = 0;
+	queue_space = n;
 
 	// Generate threads;
 	pthread_t threads[n + 1];
